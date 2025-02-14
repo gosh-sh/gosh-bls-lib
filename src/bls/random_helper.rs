@@ -3,7 +3,7 @@ use rand::Rng;
 use rand::RngCore;
 
 pub fn generate_random_msg() -> Vec<u8> {
-    let msg_len = rand::thread_rng().gen_range(2, 100);
+    let msg_len = rand::thread_rng().gen_range(2..100);
     //  println!("Msg len = {}", msg_len);
     let mut msg = vec![0u8; msg_len as usize];
     rand::thread_rng().fill_bytes(&mut msg);
@@ -28,7 +28,7 @@ pub fn gen_signer_indexes(n: u16, k: u16) -> Vec<u16> {
         let mut indexes = Vec::new();
 
         for _i in 0..k {
-            indexes.push(rng.gen_range(0, n));
+            indexes.push(rng.gen_range(0..n));
         }
 
         if indexes.len() == (k as usize) {
@@ -39,7 +39,7 @@ pub fn gen_signer_indexes(n: u16, k: u16) -> Vec<u16> {
 
 pub fn gen_random_index(n: u16) -> u16 {
     let mut rng = rand::thread_rng();
-    rng.gen_range(0, n)
+    rng.gen_range(0..n)
 }
 
 pub fn create_random_nodes_info(total_num_of_nodes: u16, attempts: u16) -> NodesInfo {
