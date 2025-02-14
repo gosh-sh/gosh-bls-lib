@@ -28,11 +28,8 @@ strip = true      # Automatically strip symbols from the binary.
 anyhow = "1.0.80"
 blst = { features = ["portable"], version = "0.3.5" }
 clap = { version = "4.5.3", features = ["derive"] }
-criterion = "0.3"
-failure = "0.1"
 hex = "0.4.3"
-rand = "0.7"
-rand_chacha = "0.2"
+rand = "0.8.5"
 tvm_types = { git = "https://github.com/tvmlabs/tvm-types", tag = "3.0.1" }
 serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0.117"
