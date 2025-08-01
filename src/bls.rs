@@ -1,3 +1,4 @@
+
 mod aggregate;
 mod converters;
 mod key_gen;
@@ -12,6 +13,20 @@ pub use self::nodes_info::*;
 pub use self::random_helper::*;
 
 //use blst::min_sig::*;
+
+use blst::BLST_ERROR;
+use blst::min_pk::Signature;
+use blst::min_pk::PublicKey;
+use blst::min_pk::AggregateSignature;
+use blst::min_pk::AggregatePublicKey;
+use rand_chacha::ChaCha20Rng;
+use rand_chacha::rand_core::SeedableRng;
+use rand_chacha::rand_core::RngCore;
+use blst::min_pk::SecretKey;
+use std::ptr;
+use blst::MultiPoint;
+use blst::blst_keygen;
+use blst::blst_scalar;
 
 use std::time::Instant;
 use tvm_types::Result;
@@ -379,3 +394,100 @@ fn test_aggregate_bls_signatures() {
         );
     }
 }
+
+
+
+pub fn gen_random_key(rng: &mut rand_chacha::ChaCha20Rng,
+        ) -> SecretKey {
+                let mut ikm = [0u8; 32];
+                rng.fill_bytes(&mut ikm);
+
+                SecretKey::key_gen(&ikm.to_vec(), &[]).unwrap()
+            }
+
+#[test]
+fn test_multi_point() {
+    let dst = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_";//"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+    let num_pks = 10000;
+
+    let seed = [0u8; 32];
+    let mut rng = ChaCha20Rng::from_seed(seed);
+
+    // Create public keys
+    let sks: Vec<_> = (0..num_pks).map(|_| gen_random_key(&mut rng)).collect();
+
+    let pks = sks.iter().map(|sk| sk.sk_to_pk()).collect::<Vec<_>>();
+    let pks_refs: Vec<&PublicKey> = pks.iter().map(|pk| pk).collect();
+
+    // Create random message for pks to all sign
+    let msg_len = (rng.next_u64() & 0x3F) + 1;
+    let mut msg = vec![0u8; msg_len as usize];
+    rng.fill_bytes(&mut msg);
+    println!("msg: {:?}", msg);
+
+    // Generate signature for each key pair
+    let sigs = sks
+        .iter()
+        .map(|sk| sk.sign(&msg, dst, &[]))
+        .collect::<Vec<Signature>>();
+        println!("sigs: {:?}", sigs.len());
+        let sigs_refs: Vec<&Signature> =
+        sigs.iter().map(|s| s).collect();
+                
+    // create random values
+    let mut rands: Vec<u8> = Vec::with_capacity(8 * num_pks);
+    for _ in 0..num_pks {
+        let mut r = rng.next_u64();
+        while r == 0 {
+            // Reject zero as it is used for multiplication.
+             r = rng.next_u64();
+        }
+        rands.extend_from_slice(&r.to_le_bytes());
+    }
+
+    // Sanity test each current single signature
+    let errs = sigs
+        .iter()
+        .zip(pks.iter())
+        .map(|(s, pk)| (s.verify(true, &msg, dst, &[], pk, true)))
+        .collect::<Vec<BLST_ERROR>>();
+    assert_eq!(errs, vec![BLST_ERROR::BLST_SUCCESS; num_pks]);
+
+    // sanity test aggregated signature
+    let agg_pk = AggregatePublicKey::aggregate(&pks_refs, false)
+        .unwrap()
+        .to_public_key();
+
+    let now = Instant::now();
+    let agg_sig = AggregateSignature::aggregate(&sigs_refs, false)
+        .unwrap()
+        .to_signature();
+    let duration = now.elapsed();
+    println!("Time elapsed by AggregateSignature::aggregate is: {:?}",
+        duration
+    );
+    println!(
+        "agg_sig is: {:?}",
+        agg_sig
+    );
+    let err = agg_sig.verify(true, &msg, dst, &[], &agg_pk, true);
+    println!(
+        "err is: {:?}",
+        err
+    );
+    assert_eq!(err, BLST_ERROR::BLST_SUCCESS);
+
+    // test multi-point aggregation using add
+    let agg_pk = pks.add().to_public_key();
+    let agg_sig = sigs.add().to_signature();
+    let err = agg_sig.verify(true, &msg, dst, &[], &agg_pk, true);
+    assert_eq!(err, BLST_ERROR::BLST_SUCCESS);
+
+    // test multi-point aggregation using mult
+    let agg_pk = pks.mult(&rands, 64).to_public_key();
+    let agg_sig = sigs.mult(&rands, 64).to_signature();
+    let err = agg_sig.verify(true, &msg, dst, &[], &agg_pk, true);
+    assert_eq!(err, BLST_ERROR::BLST_SUCCESS);
+}
+        
+    

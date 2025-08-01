@@ -26,13 +26,14 @@ strip = true      # Automatically strip symbols from the binary.
 
 [dependencies]
 anyhow = "1.0.80"
-blst = { features = ["portable"], version = "0.3.5" }
+blst = { features = ["portable"], version = "0.3.15" }
 clap = { version = "4.5.3", features = ["derive"] }
 hex = "0.4.3"
 rand = "0.8.5"
 tvm_types = { git = "https://github.com/tvmlabs/tvm-types", tag = "3.0.1" }
 serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0.117"
+rand_chacha = "0.9.0"
 
 [[bin]]
 name = "bls_keypair_gen"
