@@ -76,7 +76,15 @@ pub fn verify(
     BlsSignature::simple_verify(sig_bytes, msg, pk_bytes)
 }
 
-/** Node info related stuff */
+pub fn validate_signature(sig_bytes: &[u8; BLS_SIG_LEN]) -> bool {
+    BlsSignature::validate_signature(sig_bytes)
+}
+
+pub fn validate_public_key(pk_bytes: &[u8; BLS_PUBLIC_KEY_LEN]) -> bool {
+    BlsSignature::validate_public_key(pk_bytes)
+}
+
+/*** Functions handling raw pubkeys and sigs bytes plus extra node info) */
 
 pub fn add_node_info_to_sig(
     sig_bytes: [u8; BLS_SIG_LEN],
@@ -129,12 +137,6 @@ pub fn aggregate_public_keys_based_on_nodes_info(
     aggregate::aggregate_public_keys_based_on_nodes_info(bls_pks_bytes, nodes_info_bytes)
 }
 
-pub fn aggregate_public_keys(
-    bls_pks_bytes: &Vec<&[u8; BLS_PUBLIC_KEY_LEN]>,
-) -> Result<[u8; BLS_PUBLIC_KEY_LEN]> {
-    aggregate::aggregate_public_keys(bls_pks_bytes)
-}
-
 pub fn print_bls_public_key(bls_pk_bytes: &[u8]) {
     BlsKeyPair::print_bls_public_key(bls_pk_bytes)
 }
@@ -147,7 +149,26 @@ pub fn print_bls_signature(bls_sig_bytes: &[u8]) {
     BlsSignature::print_bls_signature(bls_sig_bytes)
 }
 
-/*** New functions */
+
+/*** Functions handling only raw pubkeys and sigs bytes, without extra node info) */
+
+pub fn aggregate_public_keys(
+    bls_pks_bytes: &Vec<&[u8; BLS_PUBLIC_KEY_LEN]>, pks_validate: bool
+) -> Result<[u8; BLS_PUBLIC_KEY_LEN]> {
+    aggregate::aggregate_public_keys(bls_pks_bytes, pks_validate)
+}
+
+pub fn aggregate_public_keys_without_pks_validate(
+    bls_pks_bytes: &Vec<&[u8; BLS_PUBLIC_KEY_LEN]>
+) -> Result<[u8; BLS_PUBLIC_KEY_LEN]> {
+    aggregate::aggregate_public_keys_without_pks_validate(bls_pks_bytes)
+}
+
+pub fn aggregate_public_keys_with_pks_validate(
+    bls_pks_bytes: &Vec<&[u8; BLS_PUBLIC_KEY_LEN]>
+) -> Result<[u8; BLS_PUBLIC_KEY_LEN]> {
+    aggregate::aggregate_public_keys_with_pks_validate(bls_pks_bytes)
+}
 
 pub fn aggregate_two_bls_signatures_without_node_info(
     sig_bytes_1: &[u8; BLS_SIG_LEN],
@@ -280,25 +301,6 @@ fn test_sign_and_add_node_info() {
 }
 
 #[test]
-fn test_aggregate_public_keys() {
-    let number_of_keys = 10000;
-    for _i in 0..10 {
-        let mut public_keys = Vec::new();
-        for _j in 0..number_of_keys {
-            let key_pair = gen_bls_key_pair().unwrap();
-            public_keys.push(key_pair.0);
-        }
-        let public_keys_refs: Vec<&[u8; BLS_PUBLIC_KEY_LEN]> = public_keys.iter().collect();
-        let now = Instant::now();
-        let _res = aggregate_public_keys(&public_keys_refs).unwrap();
-        let duration = now.elapsed();
-        //  println!("Public key : {:?}", key_pair.0);
-        //println!("Secret key : {:?}", key_pair.1);
-        println!("Time elapsed by aggregate_public_keys is: {:?}", duration);
-    }
-}
-
-#[test]
 fn test_aggregate_public_keys_based_on_nodes_info() {
     let total_num_of_nodes = 10000;
     for _i in 0..10 {
@@ -424,8 +426,6 @@ fn test_aggregate_bls_signatures() {
     }
 }
 
-
-
 fn gen_random_key(rng: &mut rand_chacha::ChaCha20Rng) -> SecretKey {
     let mut ikm = [0u8; 32];
     rng.fill_bytes(&mut ikm);
@@ -533,6 +533,25 @@ fn test_multi_point() {
 
 
 #[test]
+fn test_aggregate_public_keys() {
+    let number_of_keys = 10000;
+    for _i in 0..10 {
+        let mut public_keys = Vec::new();
+        for _j in 0..number_of_keys {
+            let key_pair = gen_bls_key_pair().unwrap();
+            public_keys.push(key_pair.0);
+        }
+        let public_keys_refs: Vec<&[u8; BLS_PUBLIC_KEY_LEN]> = public_keys.iter().collect();
+        let now = Instant::now();
+        let _res = aggregate_public_keys(&public_keys_refs, false).unwrap();
+        let duration = now.elapsed();
+        //  println!("Public key : {:?}", key_pair.0);
+        //println!("Secret key : {:?}", key_pair.1);
+        println!("Time elapsed by aggregate_public_keys is: {:?}", duration);
+    }
+}
+
+#[test]
 fn test_aggregate_two_bls_signatures_without_node_info() {
     for _i in 0..10 {
         let key_pair_1 = gen_bls_key_pair().unwrap();
@@ -573,6 +592,63 @@ fn test_aggregate_bls_signatures_without_node_info() {
     }
 }
 
+#[test]
+fn test_validate_bls_signatures_without_node_info() {
+    let number_of_signatures = 10000;
+    let msg = generate_random_msg();
+    let mut total = 0;
+    for _j in 0..number_of_signatures {
+        let key_pair = gen_bls_key_pair().unwrap();
+        let sig = sign(&key_pair.1, &msg).unwrap();
+        let now = Instant::now();
+        let res = validate_signature(&sig);
+        let duration = now.elapsed().as_micros();
+        total = total + duration;
+        
+        //println!(
+        //    "res: {:?}",
+        //    res
+        //);
+    }
+    println!(
+        "Time elapsed by validate_signature is: {:?}",
+        total
+    );
+    let sig = [1u8; 96];
+    let res = validate_signature(&sig);
+    println!(
+            "res: {:?}",
+            res
+    );
+}
+
+#[test]
+fn test_validate_bls_public_key_without_node_info() {
+    let number_of_signatures = 10000;
+    let mut total = 0;
+    for _j in 0..number_of_signatures {
+        let key_pair = gen_bls_key_pair().unwrap();
+        let now = Instant::now();
+        let res = validate_public_key(&key_pair.0);
+        let duration = now.elapsed().as_micros();
+        total = total + duration;
+        
+        //println!(
+        //    "res: {:?}",
+        //    res
+        //);
+    }
+    println!(
+        "Time elapsed by validate_public_key is: {:?}",
+        total
+    );
+    let pk = [1u8; 48];
+    let res = validate_public_key(&pk);
+    println!(
+            "res: {:?}",
+            res
+    );
+}
 /*#[test]
 fn test_aggregate_bls_signatures_without_node_info_2() {
     let number_of_signatures = 10000;

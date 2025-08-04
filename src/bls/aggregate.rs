@@ -9,23 +9,7 @@ use blst::min_pk::*;
 //use blst::min_sig::*;
 use tvm_types::fail;
 
-pub fn aggregate_public_keys(
-    bls_pks_bytes: &Vec<&[u8; BLS_PUBLIC_KEY_LEN]>,
-) -> Result<[u8; BLS_PUBLIC_KEY_LEN]> {
-    if bls_pks_bytes.is_empty() {
-        fail!("Vector of public keys can not be empty!");
-    }
-    let mut pks: Vec<PublicKey> = Vec::new();
-    for bls_pk in bls_pks_bytes {
-        pks.push(convert_public_key_bytes_to_public_key(bls_pk)?);
-    }
-    let pk_refs: Vec<&PublicKey> = pks.iter().collect();
-    let agg = match AggregatePublicKey::aggregate(&pk_refs, true) {
-        Ok(agg) => agg,
-        Err(err) => fail!("aggregate failure: {:?}", err),
-    };
-    Ok(agg.to_public_key().to_bytes())
-}
+/*** Functions handling raw pubkeys and sigs bytes plus extra node info) */
 
 pub fn aggregate_public_keys_based_on_nodes_info(
     bls_pks_bytes: &[&[u8; BLS_PUBLIC_KEY_LEN]],
@@ -45,7 +29,7 @@ pub fn aggregate_public_keys_based_on_nodes_info(
         }
     }
     let now = Instant::now();
-    let result = aggregate_public_keys(&apk_pks_required_refs)?;
+    let result = aggregate_public_keys(&apk_pks_required_refs, true)?;
     let duration = now.elapsed();
 
     println!(
@@ -125,7 +109,37 @@ pub fn aggregate_bls_signatures(sig_bytes_with_nodes_info_vec: &Vec<&Vec<u8>>) -
     Ok(new_agg_sig_bytes)
 }
 
-/*** New functions */
+/*** Functions handling only raw pubkeys and sigs bytes, without extra node info) */
+
+pub fn aggregate_public_keys(
+    bls_pks_bytes: &Vec<&[u8; BLS_PUBLIC_KEY_LEN]>, pks_validate: bool
+) -> Result<[u8; BLS_PUBLIC_KEY_LEN]> {
+    if bls_pks_bytes.is_empty() {
+        fail!("Vector of public keys can not be empty!");
+    }
+    let mut pks: Vec<PublicKey> = Vec::new();
+    for bls_pk in bls_pks_bytes {
+        pks.push(convert_public_key_bytes_to_public_key(bls_pk)?);
+    }
+    let pk_refs: Vec<&PublicKey> = pks.iter().collect();
+    let agg = match AggregatePublicKey::aggregate(&pk_refs, pks_validate) {
+        Ok(agg) => agg,
+        Err(err) => fail!("aggregate failure: {:?}", err),
+    };
+    Ok(agg.to_public_key().to_bytes())
+}
+
+pub fn aggregate_public_keys_without_pks_validate(
+    bls_pks_bytes: &Vec<&[u8; BLS_PUBLIC_KEY_LEN]>
+) -> Result<[u8; BLS_PUBLIC_KEY_LEN]> {
+    aggregate_public_keys(bls_pks_bytes, false) 
+}
+
+pub fn aggregate_public_keys_with_pks_validate(
+    bls_pks_bytes: &Vec<&[u8; BLS_PUBLIC_KEY_LEN]>
+) -> Result<[u8; BLS_PUBLIC_KEY_LEN]> {
+    aggregate_public_keys(bls_pks_bytes, true) 
+}
 
 pub fn aggregate_two_bls_signatures_without_node_info(
     sig_bytes_1: &[u8; BLS_SIG_LEN],

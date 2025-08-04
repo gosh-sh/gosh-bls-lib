@@ -2,6 +2,8 @@ use super::converters::*;
 
 use super::nodes_info::*;
 
+use blst::min_pk::PublicKey;
+use blst::min_pk::Signature;
 use blst::*;
 
 //use blst::min_sig::*;
@@ -55,6 +57,16 @@ impl BlsSignature {
         let sig = sk.sign(msg, &DST, &[]);
         Ok(sig.to_bytes())
     }
+
+    pub fn validate_signature(
+        sig_bytes: &[u8; BLS_SIG_LEN],
+    ) -> bool {
+        match Signature::sig_validate(sig_bytes, false) {
+            Ok(_) => true,
+            Err(err) => false
+        } 
+    }
+
 
     pub fn simple_verify(
         sig_bytes: &[u8; BLS_SIG_LEN],
@@ -120,6 +132,16 @@ impl BlsSignature {
         let sig_bytes = BlsSignature::truncate_nodes_info_from_sig(sig_bytes_with_nodes_info)?;
         let res = BlsSignature::simple_verify(&sig_bytes, msg, pk_bytes)?;
         Ok(res)
+    }
+
+    pub fn validate_public_key(
+        pk_bytes: &[u8; BLS_PUBLIC_KEY_LEN],
+    ) -> bool {
+        match PublicKey::key_validate(pk_bytes) {
+            Ok(_) => true,
+            Err(err) => false
+        }
+        
     }
 
     pub fn print_signature_bytes(sig_bytes: &[u8]) {
