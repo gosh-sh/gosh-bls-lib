@@ -2,6 +2,10 @@ use std::collections::HashMap;
 
 use tvm_types::{fail, Result};
 
+use std::time::Instant;
+
+use crate::bls::gen_signer_indexes;
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct NodesInfo {
     pub map: HashMap<u16, u16>,
@@ -125,3 +129,68 @@ impl NodesInfo {
         NodesInfo::with_data(new_info, total_num_of_nodes)
     }
 }
+
+fn merge_signatures_occurences(signatures_occurences_vec: &Vec<HashMap<u16, u16>>) -> Result<HashMap<u16, u16>> {
+    if signatures_occurences_vec.len() == 0 {
+        fail!("signatures_occurences empty");
+    }
+    if signatures_occurences_vec.len() == 1 {
+        Ok(signatures_occurences_vec.get(0).unwrap().clone())
+    }
+    else {
+        let now = Instant::now();
+
+        let mut merged_signatures_occurences = signatures_occurences_vec.get(0).unwrap().clone();
+        let duration = now.elapsed();
+        println!("Clone time {:?}", duration);
+        for incoming_signature_occurences in signatures_occurences_vec.iter().skip(1) {
+            for signer_index in incoming_signature_occurences.keys() {
+                let new_count = (*merged_signatures_occurences.get(signer_index).unwrap_or(&0))
+                        + (*incoming_signature_occurences.get(signer_index).unwrap());
+                merged_signatures_occurences.insert(*signer_index, new_count);
+            }
+        }
+        //merged_signatures_occurences.retain(|_k, count| *count > 0);
+        Ok(merged_signatures_occurences)
+    }
+} 
+
+fn make_() -> HashMap<u16, u16> {
+   let number_of_keys = 10000;
+    //let number_of_signatures = 10000;
+    let indexes: Vec<u16> = gen_signer_indexes(number_of_keys, 2 * number_of_keys);
+    let mut nodes_info_vec = Vec::new();
+    for ind in indexes {
+        //println!("Node index = {}", ind);
+        let mut nodes_info: HashMap<u16, u16> = HashMap::new();
+        nodes_info.insert(ind, 1);
+        nodes_info_vec.push(nodes_info);
+    }
+    let now = Instant::now();
+
+    let mut nodes_info = merge_signatures_occurences(&nodes_info_vec).unwrap();
+    let duration = now.elapsed();
+    nodes_info
+}
+
+#[test]
+fn test_() {
+    //let number_of_keys = 10000;
+    let number_of_signatures = 1000;
+    let mut nodes_info_vec = Vec::new();
+    for _i in 0..number_of_signatures {
+        nodes_info_vec.push(make_());
+    }
+    let now = Instant::now();
+    let mut nodes_info = merge_signatures_occurences(&nodes_info_vec).unwrap();
+    let duration = now.elapsed();
+    /*println!(
+            "nodes_info: {:?}",
+            nodes_info
+    );*/
+    println!(
+            "Time elapsed by aggregate_bls_signatures is: {:?}",
+            duration
+    );
+}
+
