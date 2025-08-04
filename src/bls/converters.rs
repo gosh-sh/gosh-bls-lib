@@ -17,6 +17,8 @@ pub fn convert_secret_key_bytes_to_secret_key(
     Ok(sk)
 }
 
+
+
 pub fn convert_signature_bytes_to_signature(sig_bytes: &[u8; BLS_SIG_LEN]) -> Result<Signature> {
     let sig = match Signature::from_bytes(sig_bytes) {
         Ok(sig) => sig,

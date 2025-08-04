@@ -124,3 +124,74 @@ pub fn aggregate_bls_signatures(sig_bytes_with_nodes_info_vec: &Vec<&Vec<u8>>) -
     let new_agg_sig_bytes = BlsSignature::serialize(&new_agg_sig);
     Ok(new_agg_sig_bytes)
 }
+
+/*** New functions */
+
+pub fn aggregate_two_bls_signatures_without_node_info(
+    sig_bytes_1: &[u8; BLS_SIG_LEN],
+    sig_bytes_2: &[u8; BLS_SIG_LEN],
+    sigs_groupcheck: bool
+) -> Result<[u8; BLS_SIG_LEN]> {
+    let sig1 = convert_signature_bytes_to_signature(sig_bytes_1)?;
+    let sig2 = convert_signature_bytes_to_signature(sig_bytes_2)?;
+    let sig_validate_res = sig1.validate(false); //set true to exclude infinite point, i.e. zero sig
+    if sig_validate_res.is_err() {
+        fail!("Signature is not in group.");
+    }
+    let mut agg_sig = AggregateSignature::from_signature(&sig1);
+    let res = AggregateSignature::add_signature(&mut agg_sig, &sig2, sigs_groupcheck);
+    if res.is_err() {
+        fail!("Failure while concatenate signatures");
+    }
+    let new_sig = agg_sig.to_signature();
+    Ok(new_sig.to_bytes())
+}
+
+pub fn aggregate_two_bls_signatures_without_node_info_without_sigs_check(
+    sig_bytes_1: &[u8; BLS_SIG_LEN],
+    sig_bytes_2: &[u8; BLS_SIG_LEN],
+) -> Result<[u8; BLS_SIG_LEN]> {
+    aggregate_two_bls_signatures_without_node_info(sig_bytes_1, sig_bytes_2, false) 
+}
+
+pub fn aggregate_bls_signatures_without_node_info(sigs_bytes: &Vec<&[u8; BLS_SIG_LEN]>, sigs_groupcheck: bool) -> Result<[u8; BLS_SIG_LEN]> {
+    if sigs_bytes.is_empty() {
+        fail!("Vector of signatures can not be empty!");
+    }
+    let mut sigs: Vec<Signature> = Vec::new();
+    for sig_bytes in sigs_bytes.iter() {
+        sigs.push(convert_signature_bytes_to_signature(sig_bytes)?);
+    }
+    // println!("sigs: {:?}", sigs.len());
+    let sigs_refs: Vec<&Signature> = sigs.iter().map(|s| s).collect();
+    let now = Instant::now();
+    let agg_sig = match AggregateSignature::aggregate(&sigs_refs, sigs_groupcheck) {
+        Ok(agg) => agg,
+        Err(err) => fail!("aggregate failure: {:?}", err),
+    };
+    let duration = now.elapsed();
+
+    println!(
+        "Time elapsed by AggregateSignature::aggregate is: {:?}",
+        duration
+    );
+    let new_sig = agg_sig.to_signature();
+    Ok(new_sig.to_bytes())
+}
+
+pub fn aggregate_bls_signatures_without_node_info_without_sigs_check(sigs_bytes: &Vec<&[u8; BLS_SIG_LEN]>) -> Result<[u8; BLS_SIG_LEN]> {
+    aggregate_bls_signatures_without_node_info(sigs_bytes, false)
+}
+
+pub fn aggregate_bls_signatures_without_node_info_(sigs_bytes: &Vec<&[u8]>, sigs_groupcheck: bool) -> Result<[u8; BLS_SIG_LEN]> {
+    let agg_sig = match AggregateSignature::aggregate_serialized(sigs_bytes, sigs_groupcheck) {
+        Ok(agg) => agg,
+        Err(err) => fail!("aggregate failure: {:?}", err),
+    };
+    let new_sig = agg_sig.to_signature();
+    Ok(new_sig.to_bytes())
+}
+
+pub fn aggregate_bls_signatures_without_node_info_without_sigs_check_(sigs_bytes: &Vec<&[u8]>) -> Result<[u8; BLS_SIG_LEN]> {
+    aggregate_bls_signatures_without_node_info_(sigs_bytes, false) 
+}

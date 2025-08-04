@@ -6,6 +6,8 @@ mod nodes_info;
 mod random_helper;
 mod sig;
 
+use crate::bls::aggregate::*;
+
 pub use self::key_gen::*;
 pub use self::sig::*;
 
@@ -41,6 +43,8 @@ pub const BLS_SIG_LEN_FOR_MIN_SIG_MODE: usize = 48;
 pub const BLS_SIG_LEN: usize = BLS_SIG_LEN_FOR_MIN_PK_MODE;
 pub const BLS_SEED_LEN: usize = 32;
 
+/** Basic signature scheme functions */
+
 pub fn gen_bls_key_pair_based_on_key_material(
     ikm: &[u8; BLS_KEY_MATERIAL_LEN],
 ) -> Result<([u8; BLS_PUBLIC_KEY_LEN], [u8; BLS_SECRET_KEY_LEN])> {
@@ -71,6 +75,8 @@ pub fn verify(
 ) -> Result<bool> {
     BlsSignature::simple_verify(sig_bytes, msg, pk_bytes)
 }
+
+/** Node info related stuff */
 
 pub fn add_node_info_to_sig(
     sig_bytes: [u8; BLS_SIG_LEN],
@@ -141,14 +147,37 @@ pub fn print_bls_signature(bls_sig_bytes: &[u8]) {
     BlsSignature::print_bls_signature(bls_sig_bytes)
 }
 
+/*** New functions */
+
+pub fn aggregate_two_bls_signatures_without_node_info(
+    sig_bytes_1: &[u8; BLS_SIG_LEN],
+    sig_bytes_2: &[u8; BLS_SIG_LEN],
+    sigs_groupcheck: bool
+) -> Result<[u8; BLS_SIG_LEN]> {
+    aggregate::aggregate_two_bls_signatures_without_node_info(sig_bytes_1, sig_bytes_2, sigs_groupcheck)
+}
+
+pub fn aggregate_two_bls_signatures_without_node_info_without_sigs_check(
+    sig_bytes_1: &[u8; BLS_SIG_LEN],
+    sig_bytes_2: &[u8; BLS_SIG_LEN]
+) -> Result<[u8; BLS_SIG_LEN]> {
+    aggregate::aggregate_two_bls_signatures_without_node_info_without_sigs_check(sig_bytes_1, sig_bytes_2)
+}
+
+pub fn aggregate_bls_signatures_without_node_info(sigs_bytes: &Vec<&[u8; BLS_SIG_LEN]>, sigs_groupcheck: bool) -> Result<[u8; BLS_SIG_LEN]> {
+    aggregate::aggregate_bls_signatures_without_node_info(sigs_bytes, sigs_groupcheck)
+}
+
+pub fn aggregate_bls_signatures_without_node_info_without_sigs_check(sigs_bytes: &Vec<&[u8; BLS_SIG_LEN]>, sigs_groupcheck: bool) -> Result<[u8; BLS_SIG_LEN]> {
+    aggregate::aggregate_bls_signatures_without_node_info(sigs_bytes, sigs_groupcheck)
+}
+
 #[test]
 fn test_gen_bls_key_pair() {
     for _i in 0..100 {
         let now = Instant::now();
         let _key_pair = gen_bls_key_pair().unwrap();
         let duration = now.elapsed();
-        //  println!("Public key : {:?}", key_pair.0);
-        // println!("Secret key : {:?}", key_pair.1);
         println!("Time elapsed by gen_bls_key_pair is: {:?}", duration);
     }
 }
@@ -365,8 +394,8 @@ fn test_aggregate_two_bls_signatures_2() {
 
 #[test]
 fn test_aggregate_bls_signatures() {
-    let number_of_keys = 10000;
-    let number_of_signatures = 50;
+    let number_of_keys = 1000;
+    let number_of_signatures = 10000;
     for _i in 0..10 {
         let mut sigs = Vec::new();
         let msg = generate_random_msg();
@@ -397,17 +426,17 @@ fn test_aggregate_bls_signatures() {
 
 
 
-pub fn gen_random_key(rng: &mut rand_chacha::ChaCha20Rng,
-        ) -> SecretKey {
-                let mut ikm = [0u8; 32];
-                rng.fill_bytes(&mut ikm);
-
-                SecretKey::key_gen(&ikm.to_vec(), &[]).unwrap()
-            }
+fn gen_random_key(rng: &mut rand_chacha::ChaCha20Rng) -> SecretKey {
+    let mut ikm = [0u8; 32];
+    rng.fill_bytes(&mut ikm);
+    SecretKey::key_gen(&ikm.to_vec(), &[]).unwrap()
+}
 
 #[test]
 fn test_multi_point() {
-    let dst = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_";//"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+    let dst = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_";
+    //let dst = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+
     let num_pks = 10000;
 
     let seed = [0u8; 32];
@@ -426,6 +455,14 @@ fn test_multi_point() {
     println!("msg: {:?}", msg);
 
     // Generate signature for each key pair
+    let sigs = sks
+        .iter()
+        .map(|sk| sk.sign(&msg, dst, &[]))
+        .collect::<Vec<Signature>>();
+        println!("sigs: {:?}", sigs.len());
+        let sigs_refs: Vec<&Signature> =
+        sigs.iter().map(|s| s).collect();
+
     let sigs = sks
         .iter()
         .map(|sk| sk.sign(&msg, dst, &[]))
@@ -459,9 +496,13 @@ fn test_multi_point() {
         .to_public_key();
 
     let now = Instant::now();
-    let agg_sig = AggregateSignature::aggregate(&sigs_refs, false)
+    let agg_sig = AggregateSignature::aggregate(&sigs_refs, true)
         .unwrap()
         .to_signature();
+
+    //let agg_sig = AggregateSignature::aggregate(&sigs_refs, false)
+    //    .unwrap()
+    //    .to_signature();
     let duration = now.elapsed();
     println!("Time elapsed by AggregateSignature::aggregate is: {:?}",
         duration
@@ -489,5 +530,75 @@ fn test_multi_point() {
     let err = agg_sig.verify(true, &msg, dst, &[], &agg_pk, true);
     assert_eq!(err, BLST_ERROR::BLST_SUCCESS);
 }
+
+
+#[test]
+fn test_aggregate_two_bls_signatures_without_node_info() {
+    for _i in 0..10 {
+        let key_pair_1 = gen_bls_key_pair().unwrap();
+        let key_pair_2 = gen_bls_key_pair().unwrap();
+        let msg = generate_random_msg();
+        let sig_1 = sign(&key_pair_1.1, &msg).unwrap();
+        let sig_2 = sign(&key_pair_2.1, &msg).unwrap();
+        let now = Instant::now();
+        let _res = aggregate_two_bls_signatures_without_node_info(&sig_1, &sig_2, false).unwrap();
+        let duration = now.elapsed();
+        println!(
+            "Time elapsed by aggregate_two_bls_signatures_without_node_info is: {:?}",
+            duration
+        );
+    }
+}
+
+#[test]
+fn test_aggregate_bls_signatures_without_node_info() {
+    let number_of_signatures = 10000;
+    for _i in 0..10 {
+        let mut sigs = Vec::new();
+        let msg = generate_random_msg();
+        for _j in 0..number_of_signatures {
+            let key_pair = gen_bls_key_pair().unwrap();
+            let sig = sign(&key_pair.1, &msg).unwrap();
+            sigs.push(sig);
+        }
+        let sigs_refs = sigs.iter().collect();
+        let now = Instant::now();
+        let _res = aggregate_bls_signatures_without_node_info(&sigs_refs, false).unwrap();
+        let duration = now.elapsed();
+
+        println!(
+            "Time elapsed by aggregate_bls_signatures_without_node_info is: {:?}",
+            duration
+        );
+    }
+}
+
+/*#[test]
+fn test_aggregate_bls_signatures_without_node_info_2() {
+    let number_of_signatures = 10000;
+    for _i in 0..10 {
+        let mut sigs = Vec::new();
+        let mut sigs_refs = Vec::new();
+        let msg = generate_random_msg();
+        for _j in 0..number_of_signatures {
+            let key_pair = gen_bls_key_pair().unwrap();
+            let sig = sign(&key_pair.1, &msg).unwrap();
+            sigs.push(sig);
+            
+        }
+        for _j in 0..number_of_signatures {
+            sigs_refs.push(sigs[_j].as_slice());
+        }
+        //let sigs_refs = sigs.iter().collect();
+        let now = Instant::now();
+        let _res = aggregate_bls_signatures_without_node_info_(&sigs_refs, false).unwrap();
+        let duration = now.elapsed();
+
+        println!(
+            "Time elapsed by aggregate_bls_signatures_without_node_info_ is: {:?}",
+            duration
+        );
+    }
+}*/
         
     
