@@ -82,7 +82,7 @@ pub fn aggregate_bls_signatures(sig_bytes_with_nodes_info_vec: &Vec<&Vec<u8>>) -
     for item in &bls_sigs_refs {
         nodes_info_refs.push(&item.nodes_info);
         let sig = convert_signature_bytes_to_signature(&item.sig_bytes)?;
-        println!("{:?}", &sig.to_bytes());
+        //println!("{:?}", &sig.to_bytes());
         //return this part to exclude zero sig
         /* let res = sig.validate(true);
         if res.is_err() {
@@ -90,8 +90,14 @@ pub fn aggregate_bls_signatures(sig_bytes_with_nodes_info_vec: &Vec<&Vec<u8>>) -
         }*/
         sigs.push(sig);
     }
-
+    let now = Instant::now();
     let new_nodes_info = NodesInfo::merge_multiple(&nodes_info_refs)?;
+    let duration = now.elapsed();
+
+    println!(
+        "Time elapsed by NodesInfo::merge_multiple is: {:?}",
+        duration
+    );
 
     let sig_refs: Vec<&Signature> = sigs.iter().collect();
 

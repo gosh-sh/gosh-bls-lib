@@ -25,13 +25,14 @@ use rand_chacha::ChaCha20Rng;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::rand_core::RngCore;
 use blst::min_pk::SecretKey;
+use std::collections::HashMap;
 use std::ptr;
 use blst::MultiPoint;
 use blst::blst_keygen;
 use blst::blst_scalar;
 
 use std::time::Instant;
-use tvm_types::Result;
+use tvm_types::{fail, Result};
 
 pub const BLS_SECRET_KEY_LEN: usize = 32;
 pub const BLS_PUBLIC_KEY_LEN_FOR_MIN_PK_MODE: usize = 48;
@@ -185,13 +186,15 @@ pub fn aggregate_two_bls_signatures_without_node_info_without_sigs_check(
     aggregate::aggregate_two_bls_signatures_without_node_info_without_sigs_check(sig_bytes_1, sig_bytes_2)
 }
 
-pub fn aggregate_bls_signatures_without_node_info(sigs_bytes: &Vec<&[u8; BLS_SIG_LEN]>, sigs_groupcheck: bool) -> Result<[u8; BLS_SIG_LEN]> {
+pub fn aggregate_bls_signatures_without_node_info_without_sigs_check(sigs_bytes: &Vec<&[u8; BLS_SIG_LEN]>) -> Result<[u8; BLS_SIG_LEN]> {
+    aggregate::aggregate_bls_signatures_without_node_info_without_sigs_check(sigs_bytes)
+}
+
+pub fn aggregate_bls_signatures_without_node_info(sigs_bytes: &Vec<&[u8; BLS_SIG_LEN]>, sigs_groupcheck: bool)-> Result<[u8; BLS_SIG_LEN]> {
     aggregate::aggregate_bls_signatures_without_node_info(sigs_bytes, sigs_groupcheck)
 }
 
-pub fn aggregate_bls_signatures_without_node_info_without_sigs_check(sigs_bytes: &Vec<&[u8; BLS_SIG_LEN]>, sigs_groupcheck: bool) -> Result<[u8; BLS_SIG_LEN]> {
-    aggregate::aggregate_bls_signatures_without_node_info(sigs_bytes, sigs_groupcheck)
-}
+
 
 #[test]
 fn test_gen_bls_key_pair() {
@@ -396,7 +399,7 @@ fn test_aggregate_two_bls_signatures_2() {
 
 #[test]
 fn test_aggregate_bls_signatures() {
-    let number_of_keys = 1000;
+    let number_of_keys = 10000;
     let number_of_signatures = 10000;
     for _i in 0..10 {
         let mut sigs = Vec::new();
@@ -531,7 +534,6 @@ fn test_multi_point() {
     assert_eq!(err, BLST_ERROR::BLST_SUCCESS);
 }
 
-
 #[test]
 fn test_aggregate_public_keys() {
     let number_of_keys = 10000;
@@ -570,7 +572,7 @@ fn test_aggregate_two_bls_signatures_without_node_info() {
 }
 
 #[test]
-fn test_aggregate_bls_signatures_without_node_info() {
+fn test_aggregate_bls_signatures_without_node_info_without_sigs_check() {
     let number_of_signatures = 10000;
     for _i in 0..10 {
         let mut sigs = Vec::new();
@@ -582,7 +584,7 @@ fn test_aggregate_bls_signatures_without_node_info() {
         }
         let sigs_refs = sigs.iter().collect();
         let now = Instant::now();
-        let _res = aggregate_bls_signatures_without_node_info(&sigs_refs, false).unwrap();
+        let _res = aggregate_bls_signatures_without_node_info_without_sigs_check(&sigs_refs).unwrap();
         let duration = now.elapsed();
 
         println!(
@@ -649,32 +651,8 @@ fn test_validate_bls_public_key_without_node_info() {
             res
     );
 }
-/*#[test]
-fn test_aggregate_bls_signatures_without_node_info_2() {
-    let number_of_signatures = 10000;
-    for _i in 0..10 {
-        let mut sigs = Vec::new();
-        let mut sigs_refs = Vec::new();
-        let msg = generate_random_msg();
-        for _j in 0..number_of_signatures {
-            let key_pair = gen_bls_key_pair().unwrap();
-            let sig = sign(&key_pair.1, &msg).unwrap();
-            sigs.push(sig);
-            
-        }
-        for _j in 0..number_of_signatures {
-            sigs_refs.push(sigs[_j].as_slice());
-        }
-        //let sigs_refs = sigs.iter().collect();
-        let now = Instant::now();
-        let _res = aggregate_bls_signatures_without_node_info_(&sigs_refs, false).unwrap();
-        let duration = now.elapsed();
 
-        println!(
-            "Time elapsed by aggregate_bls_signatures_without_node_info_ is: {:?}",
-            duration
-        );
-    }
-}*/
-        
+
+
+
     
